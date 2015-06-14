@@ -18,7 +18,6 @@
 #include <Windows.h>
 #include <Dbghelp.h>
 
-int g_var[50];
 
 #include "Counter.h"
 #include "optimizer.h"
@@ -56,31 +55,9 @@ LONG WINAPI exception_filter(struct _EXCEPTION_POINTERS* ExceptionInfo)
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
-bool g_running = true;
-
-UINT __stdcall PrintThread(void* arg)
-{
-#if 0
-	while (g_running)
-	{
-		printf("=================================\n");
-		for (int i = 0; i < 35; i++)
-		{
-			printf("var[%d] = %d\n", i, g_cnt[i]);
-		}
-
-		Sleep(2000);
-	}
-#endif
-
-	return 0;
-}
-
 int _tmain(int argc, _TCHAR* argv[])
 {
 	SetErrorMode(SEM_NOGPFAULTERRORBOX);
-
-	HANDLE hThread = (HANDLE)::_beginthreadex(0, 0, PrintThread, 0, 0, 0);
 
 	WSADATA data;
 	if(WSAStartup(MAKEWORD(2, 2), &data) != 0)
@@ -148,10 +125,6 @@ int _tmain(int argc, _TCHAR* argv[])
 #endif 
 
 	WSACleanup();
-
-	g_running = false;
-
-	::WaitForSingleObject(hThread, INFINITE);
 
 	return 0;
 }

@@ -843,7 +843,12 @@ _UNINITIALIZED:
 						, it->first.c_str(), _timeout, sb->_frameCnt, dcnt, dlen);
 				}
 			}
+
+			delete sb;
+			sb = NULL;
 		}
+
+		_buffers.clear();
 	}
 
 public:
@@ -976,29 +981,6 @@ private:
 
 	//buffer
 	u_int32		_timeout;
-	/*
-	u_int32 _timeout;
-	u_int32 _curTimeV;
-	u_int32 _orgBufCnt;
-	int		_adjust;
-	bool	_isFstV;
-	bool	_isBaseSet;
-	u_int32 _frameCnt;
-	u_int32 _nowtimePool[POOL_SIZE];
-
-	u_int32 _curTimeA;
-	u_int32 _preTimeA;
-
-	std::queue<PluginBuf*> _bufCanV;
-	pthread_mutex_t _bufMtxV;
-	std::queue<PluginBuf*> _bufCanA;
-	pthread_mutex_t _bufMtxA;
-
-	//
-	PluginBuf* _readyV;
-	PluginBuf* _readyA;
-	*/
-
 	std::map<std::string/*UUID*/, StreamBuf*> _buffers;
 
 private:

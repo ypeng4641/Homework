@@ -36,9 +36,22 @@ int Dispatch::Init()
 	pthread_mutex_init(&_mutex, NULL);
 
 	//
-	for(unsigned int i = 0; i < SOCKET_POOL_SIZE; i++)
+	for(unsigned int i = 0, j = 0; i < SOCKET_POOL_SIZE; i++)
 	{
 		SOCKET s = socket(AF_INET, SOCK_DGRAM, 0);
+
+		for(; true; j++)
+		{
+			sockaddr_in sa;
+			sa.sin_family = AF_INET;
+			sa.sin_addr.s_addr = INADDR_ANY;//inet_addr("127.0.0.1");
+			sa.sin_port = htons(FIRST_PORT + j);
+			if(bind(s, (sockaddr*)&sa, sizeof(sa)) != SOCKET_ERROR)
+			{
+				break;
+			}
+		}
+
 		Network::DefaultDatagram(s);
 
 		Network::SetNonBlock(s);

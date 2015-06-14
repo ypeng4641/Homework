@@ -428,22 +428,10 @@ void App::Run()
 
 	while(_isrun)
 	{
-		Message* m = NULL;
-		if(g_dif < 0)
-		{
-			TimeDiffer td("app-Message pop()");
-		m = _msgQueue.pop();
-		}
-		else
-		{
-			m = _msgQueue.pop();
-		}
-
+		Message* m = _msgQueue.pop();
 		if(m)
 		{
-			g_cnt[0]++;
 			Dispatch(m);
-			g_cnt[20]++;
 		}
 
 		struct timeval tv;
@@ -451,36 +439,22 @@ void App::Run()
 
 		if(tv.tv_sec - base1.tv_sec >= 3)
 		{
-			g_cnt[1]++;
 			base1 = tv;
 			alive();
 			//LOG(LEVEL_INFO, "alive()###videoservice is very much alive!! Feed the dog.");
 			m_doggy.SetHungryLimit(30);
-			g_cnt[21]++;
 		}
 
 		if(tv.tv_sec - base2.tv_sec >= 1)
 		{
-			g_cnt[2]++;
 			base2 = tv;
 			check(); // 检查信号源是否有错误，有错误重连
-			g_cnt[22]++;
 		}
 
 		if((u_int64(tv.tv_sec - base3.tv_sec)*1000 + (tv.tv_usec - base3.tv_usec)/1000) > 100)
 		{
-			g_cnt[3]++;
 			base3 = tv;
-			if(g_dif < 0)
-			{
-				TimeDiffer td("background");
 			background(); // 定时发“NO SIGNAL”图片
-			}
-			else
-			{
-				background(); // 定时发“NO SIGNAL”图片
-			}
-			g_cnt[23]++;
 		}
 	}
 
@@ -497,7 +471,6 @@ void App::Dispatch(Message* m)
 	{
 	case APP_INNER_COMMAND:
 		{
-			g_cnt[5]++;
 			MsgCommand msg;
 			memcpy(&msg, m->data(), sizeof(msg));
 			
@@ -513,7 +486,6 @@ void App::Dispatch(Message* m)
 		break;
 	case APP_INNER_RESULT:
 		{
-			g_cnt[6]++;
 			// 提取事务信息
 			MsgResult msg;
 			memcpy(&msg, m->data(), sizeof(msg));
@@ -532,7 +504,6 @@ void App::Dispatch(Message* m)
 		break;
 	case APP_INNER_REQUEST:
 		{
-			g_cnt[7]++;
 			MsgRequest msg;
 			memcpy(&msg, m->data(), sizeof(msg));
 
@@ -546,7 +517,6 @@ void App::Dispatch(Message* m)
 		break;
 	case APP_INNER_SERVICE:
 		{
-			g_cnt[8]++;
 			// 提取服务描述信息
 			MsgService msg;
 			memcpy(&msg, m->data(), sizeof(msg));
@@ -559,7 +529,6 @@ void App::Dispatch(Message* m)
 		break;
 	case APP_INNER_CLIENT:
 		{
-			g_cnt[9]++;
 			// 提取服务描述信息
 			MsgClient msg;
 			memcpy(&msg, m->data(), sizeof(msg));
@@ -572,7 +541,6 @@ void App::Dispatch(Message* m)
 		break;
 	case APP_INNER_PACKET:
 		{
-			g_cnt[10]++;
 			// 提取包信息
 			MsgPacket msg;
 			memcpy(&msg, m->data(), sizeof(msg));
@@ -589,7 +557,6 @@ void App::Dispatch(Message* m)
 		break;
 	default:
 		{
-			g_cnt[11]++;
 			LOG(LEVEL_WARNING, "Don't Support This Command, Type = %d", m->type());
 		}
 		break;

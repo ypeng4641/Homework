@@ -17,7 +17,8 @@ class Dispatch
 private:
 	enum 
 	{
-		SOCKET_POOL_SIZE = 64,
+		SOCKET_POOL_SIZE = 32,
+		FIRST_PORT = 34200,
 
 		TICK_COUNT = 200,
 		TICK_TIME = 1000000 / TICK_COUNT,
