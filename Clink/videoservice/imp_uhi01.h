@@ -52,21 +52,24 @@ public:
 		//paramInit();
 
 		_preV = GetTickCount();
-		if(!getchannel(_channel))
+		if(!getchannel(_channel, _stream))
 		{
 			_channel = 0;
+			_stream = 1;
 		}
-
-		sumObj++;
+		
+		//
+		sumObj = ::InterlockedIncrement((unsigned int*)&sumObj);
 		curObj = sumObj;
 		LOG(LEVEL_INFO, "ypeng@ uhi01(%u),Construction success, object's tagNum=%d, STREAM_NUM=%d.\n", this, curObj, STREAM_NUM);
 	}
 
 	~Self_HIPC_RGB()
 	{
-		paramDeinit();
-
-		sumObj--;
+		//paramDeinit();
+		
+		//
+		sumObj = ::InterlockedDecrement((unsigned int*)&sumObj);
 		LOG(LEVEL_INFO, "ypeng@ uhi01(%u),Deconstruction success, object's tagNum=%d, remAll=%d.\n", this, curObj, sumObj);
 	}
 	
@@ -102,18 +105,15 @@ private:
 
 	void paramDeinit(void)
 	{
-		if(_req_fd != -1)
+		for(int i = 0; i < STREAM_NUM; i++)
 		{
-			for(int i = 0; i < STREAM_NUM; i++)
-			{
-				delete[] _videodesc_list[i];
-				_videodesc_list[i] = NULL;
-			}
+			delete[] (char*)_videodesc_list[i];
+			_videodesc_list[i] = NULL;
 		}
 		_videodesc_list.clear();
 	}
 
-	bool getchannel(int& channel)
+	bool getchannel(int& channel, int& stream)
 	{
 		const VS_SIGNAL* p = reinterpret_cast<const VS_SIGNAL*>(signal());
 		if(p->datalen != sizeof(PARAMS_DEF))
@@ -124,13 +124,14 @@ private:
 		//int result = *reinterpret_cast<const int*>(p->data);
 		PARAMS_DEF* result = (PARAMS_DEF*) (p->data);
 
-		if(result->channel < 0)//(result != 0 && result != 1)
+		if(result->channel < 0 || result->streamID < 0)//(result != 0 && result != 1)
 		{
 			return false;
 		}
 
 		channel = result->channel;
-		LOG(LEVEL_INFO, "ypeng@ Get channel=%d\n", channel);
+		stream = result->streamID;
+		LOG(LEVEL_INFO, "ypeng@ Get channel=%d, stream=%d.\n", channel, stream);
 		return true;
 	}
 
@@ -406,6 +407,7 @@ private:
 
 private:
 	int _channel;
+	int _stream;
 
 	int _req_fd;
 	int _audio_fd;

@@ -159,6 +159,12 @@
     <ClInclude Include="optimizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Nvt.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="NvtHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="stdafx.cpp">
@@ -263,5 +269,13 @@
     <ClCompile Include="optimizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="NvtHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="videoservice.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

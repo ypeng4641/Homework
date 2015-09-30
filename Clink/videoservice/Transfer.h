@@ -108,6 +108,19 @@ private:
 	void tfm_multicast(const VS_MULTICAST* output);
 	void tfm_unicast(const VS_UNICAST* output);
 
+	void buf_rcl(const P_VIDEO* p)
+#ifdef OPT_MEM_TO_PTR
+	{
+		OPT_MEM* om = (OPT_MEM*)p->data;
+		delete[] om->memData;
+		om->memData = NULL;
+		om->memLen = 0;
+	}
+#else
+	{
+		return;
+	}
+#endif//OPT_MEM_TO_PTR
 
 private:
 	pthread_t	_thread;

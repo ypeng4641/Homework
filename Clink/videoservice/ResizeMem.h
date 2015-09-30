@@ -9,6 +9,11 @@ public:
 	ResizeMem():mem_(NULL),max_(0),size_(0)
 	{
 	}
+	~ResizeMem()
+	{
+		delete[] mem_;
+		mem_ = NULL;
+	}
 	void copy(char* data, int size)
 	{
 		if(max_ < size)

@@ -43,6 +43,8 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <EmbedManifest>false</EmbedManifest>
+    <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -113,6 +115,8 @@
     <ClInclude Include="msg.h" />
     <ClInclude Include="myRTSPClient.h" />
     <ClInclude Include="NetHelper.h" />
+    <ClInclude Include="Nvt.h" />
+    <ClInclude Include="NvtHelper.h" />
     <ClInclude Include="optimizer.h" />
     <ClInclude Include="Plugin.h" />
     <ClInclude Include="put_bits.h" />
@@ -159,6 +163,7 @@
     <ClCompile Include="imp_rtsplive555.cpp" />
     <ClCompile Include="myRTSPClient.cpp" />
     <ClCompile Include="NetHelper.cpp" />
+    <ClCompile Include="NvtHelper.cpp" />
     <ClCompile Include="optimizer.cpp" />
     <ClCompile Include="Signal.cpp" />
     <ClCompile Include="SocketHelp.h" />
@@ -174,6 +179,9 @@
     <ClCompile Include="Transfer.cpp" />
     <ClCompile Include="videoservice.cpp" />
     <ClCompile Include="VideoSlice.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="videoservice.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

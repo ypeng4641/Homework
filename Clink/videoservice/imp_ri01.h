@@ -189,7 +189,8 @@ public:
 		_aacHelper = new AAC_FileTool("D:/tdjm.aac");//("D:/write0.aac");
 #endif
 		
-		sumObj++;
+		//
+		sumObj = ::InterlockedIncrement((unsigned int*)&sumObj);
 		curObj = sumObj;
 		LOG(LEVEL_INFO, "ypeng@ ri01(%u),Construction success, object's tagNum=%d.\n", this, curObj);
 	}
@@ -199,7 +200,8 @@ public:
 #ifdef A_READFILE
 		delete _aacHelper;
 #endif
-		sumObj--;
+		//
+		sumObj = ::InterlockedDecrement((unsigned int*)&sumObj);
 		LOG(LEVEL_INFO, "ypeng@ ri01(%u),Deconstruction success, object's tagNum=%d, remAll=%d.\n", this, curObj, sumObj);
 	}
 

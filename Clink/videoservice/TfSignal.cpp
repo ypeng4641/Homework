@@ -330,11 +330,20 @@ int TfSignal::audio(const P_AUDIO* p)
 		s2s = new Stamp2Showtime(p->stampId);
 		_s2s_list.push_back(s2s);
 	}
+	
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	u_int64 nowtime = ((u_int64)tv.tv_sec) * 1000 + tv.tv_usec / 1000;
 
 	u_int64 timestamp = 0;
-	if(s2s->toshowtime(p->timestamp, timestamp, true, 0))
+	u_int64 sys_showtime = 0;
+	u_int32 sys_frameno = 0;
+	//if(s2s->toshowtime(p->timestamp, timestamp, true, 0))
+	bool ret = s2s->toshowtime(p->timestamp, timestamp, false, nowtime);
+	s2s->map2sys(timestamp, sys_frameno, sys_showtime);
+	if(ret)
 	{
-		s->audio(p, timestamp);
+		s->audio(p, sys_showtime);
 	}
 	
 	//static bool once = false;

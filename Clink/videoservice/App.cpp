@@ -347,7 +347,9 @@ int App::SigCB(const device::Result* m, const Uuid& item)
 			//
 			Request(ts, 0, Id(), &m);
 
-#if 0//def OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_App) != 0)
+{
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
@@ -363,7 +365,8 @@ int App::SigCB(const device::Result* m, const Uuid& item)
 			, (int)self_id.p, self_id.x
 			, p->datalen, p->timestamp, nowtime, l_dif);
 	}
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 		}
 		break;
 	default:
@@ -426,12 +429,15 @@ void App::Run()
 	struct timeval base3;
 	gettimeofday(&base3, NULL);
 
+	gCntB(opt_App_Run);
 	while(_isrun)
 	{
 		Message* m = _msgQueue.pop();
 		if(m)
 		{
+			gCntB(opt_App_Dispatch);
 			Dispatch(m);
+			gCntE(opt_App_Dispatch);
 		}
 
 		struct timeval tv;
@@ -440,7 +446,9 @@ void App::Run()
 		if(tv.tv_sec - base1.tv_sec >= 3)
 		{
 			base1 = tv;
+			gCntB(opt_App_alive);
 			alive();
+			gCntE(opt_App_alive);
 			//LOG(LEVEL_INFO, "alive()###videoservice is very much alive!! Feed the dog.");
 			m_doggy.SetHungryLimit(30);
 		}
@@ -448,15 +456,20 @@ void App::Run()
 		if(tv.tv_sec - base2.tv_sec >= 1)
 		{
 			base2 = tv;
+			gCntB(opt_App_check);
 			check(); // 检查信号源是否有错误，有错误重连
+			gCntE(opt_App_check);
 		}
 
 		if((u_int64(tv.tv_sec - base3.tv_sec)*1000 + (tv.tv_usec - base3.tv_usec)/1000) > 100)
 		{
 			base3 = tv;
+			gCntB(opt_App_background);
 			background(); // 定时发“NO SIGNAL”图片
+			gCntE(opt_App_background);
 		}
 	}
+	gCntE(opt_App_Run);
 
 	/* Stop code */
 	{
@@ -476,7 +489,9 @@ void App::Dispatch(Message* m)
 			
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_COMMAND, msg=%d\r\n", msg.message->type());
 
+			gCntB(opt_App_Dispatch_COMMAND);
 			ExecCommand(msg.tranId, msg.step, msg.message);
+			gCntE(opt_App_Dispatch_COMMAND);
 
 			if(msg.message)
 			{
@@ -493,7 +508,9 @@ void App::Dispatch(Message* m)
 			//LOG(LEVEL_INFO, "APP: type=APP_INNER_RESULT, msg=%d\r\n", msg.message->type());
 
 			// 执行事务步骤
+			gCntB(opt_App_Dispatch_RESULT);
 			ExecResult(msg.tranId, msg.step, msg.compId, msg.message);
+			gCntE(opt_App_Dispatch_RESULT);
 
 			// 释放内部消息
 			if(msg.message)
@@ -507,7 +524,9 @@ void App::Dispatch(Message* m)
 			MsgRequest msg;
 			memcpy(&msg, m->data(), sizeof(msg));
 
+			gCntB(opt_App_Dispatch_REQUEST);
 			ExecRequest(msg.tranId, msg.step, msg.compId, msg.message);
+			gCntE(opt_App_Dispatch_REQUEST);
 
 			if(msg.message)
 			{
@@ -524,7 +543,9 @@ void App::Dispatch(Message* m)
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_SERVICE\r\n");
 
 			// 处理服务
+			gCntB(opt_App_Dispatch_SERVICE);
 			ExecService(msg.err, msg.s, msg.item);
+			gCntE(opt_App_Dispatch_SERVICE);
 		}
 		break;
 	case APP_INNER_CLIENT:
@@ -536,7 +557,9 @@ void App::Dispatch(Message* m)
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_CLIENT\r\n");
 
 			// 处理服务
+			gCntB(opt_App_Dispatch_CLIENT);
 			ExecClient(msg.err, msg.s, msg.item);
+			gCntE(opt_App_Dispatch_CLIENT);
 		};
 		break;
 	case APP_INNER_PACKET:
@@ -546,7 +569,9 @@ void App::Dispatch(Message* m)
 			memcpy(&msg, m->data(), sizeof(msg));
 			
 			// 执行请求
+			gCntB(opt_App_Dispatch_PACKET);
 			ExecPacket(msg.err, msg.item, msg.packet);
+			gCntE(opt_App_Dispatch_PACKET);
 
 			// 释放数据包
 			if(msg.packet)
@@ -753,7 +778,9 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 		{
 			//LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=PLUGIN_REQ_ERROR\r\n");
 			const P_ERROR* p = reinterpret_cast<const P_ERROR*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_ERROR);
 			doError(p->item, p->error);
+			gCntE(opt_App_Dispatch_REQUEST_ERROR);
 		}
 		break;
 	case PLUGIN_REQ_DESC:
@@ -761,19 +788,26 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=PLUGIN_REQ_DESC\r\n");
 
 			const P_DESC* p = reinterpret_cast<const P_DESC*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_DESC);
 			doDesc(p->id, p);
+			gCntE(opt_App_Dispatch_REQUEST_DESC);
 		}
 		break;
 	case PLUGIN_REQ_AUDIO_DATA:
 		{
 			const P_AUDIO* p = reinterpret_cast<const P_AUDIO*>(m->data());
+
+			gCntB(opt_App_Dispatch_REQUEST_AUDIO);
 			doAudio(p->item, p);
+			gCntE(opt_App_Dispatch_REQUEST_AUDIO);
 		}
 		break;
 	case PLUGIN_REQ_VIDEO_DATA:
 		{
 			const P_VIDEO* p = reinterpret_cast<const P_VIDEO*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_VIDEO);
 			doVideo(p->item, p);
+			gCntE(opt_App_Dispatch_REQUEST_VIDEO);
 		}
 		break;
 	case TRANSFER_REQ_JOIN:
@@ -781,7 +815,9 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=TRANSFER_REQ_JOIN\r\n");
 
 			const VS_JOIN* p = reinterpret_cast<const VS_JOIN*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_JOIN);
 			msgJoin(p);
+			gCntE(opt_App_Dispatch_REQUEST_JOIN);
 		}
 		break;
 	case TRANSFER_REQ_BASE:
@@ -789,7 +825,9 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=TRANSFER_REQ_BASE\r\n");
 
 			const VS_SETBASE* p = reinterpret_cast<const VS_SETBASE*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_BASE);
 			msgBase(p);
+			gCntE(opt_App_Dispatch_REQUEST_BASE);
 		}
 		break;
 	case TRANSFER_REQ_MULTICAST:
@@ -797,7 +835,9 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=TRANSFER_REQ_MULTICAST\r\n");
 
 			const VS_MULTICAST* p = reinterpret_cast<const VS_MULTICAST*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_MULTICAST);
 			msgMulticast(p);
+			gCntE(opt_App_Dispatch_REQUEST_MULTICAST);
 		}
 		break;
 	case TRANSFER_REQ_UNICAST:
@@ -805,7 +845,9 @@ void App::ExecRequest(const Uuid& tranId, unsigned int step, const Uuid& compId,
 			LOG(LEVEL_INFO, "APP: type=APP_INNER_REQUEST, msg=TRANSFER_REQ_UNICAST\r\n");
 
 			const VS_UNICAST* p = reinterpret_cast<const VS_UNICAST*>(m->data());
+			gCntB(opt_App_Dispatch_REQUEST_UNICAST);
 			msgUnicast(p);
+			gCntE(opt_App_Dispatch_REQUEST_UNICAST);
 		}
 		break;
 	default:
@@ -894,7 +936,7 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 		delclient(client);
 		delete client;
 
-		LOG(LEVEL_INFO, "Err=%d, Disconnect", err);
+		LOG(LEVEL_INFO, "netpump has an Err=%d, Disconnect", err);
 		return;
 	}
 
@@ -924,7 +966,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 					}
 
 					const VS_LOGIN* data = reinterpret_cast<const VS_LOGIN*>(p->data());
+					gCntB(opt_App_Dispatch_PACKET_LOGIN);
 					doLogin(client, p->sequence(), data->name, data->password, data->mask);
+					gCntE(opt_App_Dispatch_PACKET_LOGIN);
 				}
 				break;
 
@@ -944,7 +988,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 				{
 					LOG(LEVEL_INFO, "APP: type=APP_INNER_PACKET, msg=VS_COMMAND, sub=【VS_CMD_LOGOUT】\r\n");
 
+					gCntB(opt_App_Dispatch_PACKET_LOGOUT);
 					doLogout(client, p->sequence());
+					gCntE(opt_App_Dispatch_PACKET_LOGOUT);
 				}
 				break;           
 			case VS_CMD_OPEN_SIGNAL:
@@ -965,7 +1011,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 						return;
 					}
 
+					gCntB(opt_App_Dispatch_PACKET_OPEN_SIGNAL);
 					doOpen(client->Id(), p->sequence(), data->id, &data->signal);
+					gCntE(opt_App_Dispatch_PACKET_OPEN_SIGNAL);
 				}
 				break;      
 			case VS_CMD_CLOSE_SIGNAL:
@@ -979,7 +1027,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 					}
 
 					Uuid signal_id(*reinterpret_cast<const ::UUID*>(p->data()));
+					gCntB(opt_App_Dispatch_PACKET_CLOSE_SIGNAL);
 					doClose(client->Id(), p->sequence(), signal_id);
+					gCntE(opt_App_Dispatch_PACKET_CLOSE_SIGNAL);
 				}
 				break;     
 			case VS_CMD_ADD_OUTPUT:
@@ -1000,7 +1050,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 									(int32)output->output.index, 
 									(int32)output->output.output);
 
+					gCntB(opt_App_Dispatch_PACKET_ADD_OUTPUT);
 					doAddOutput(client->Id(), p->sequence(), output);
+					gCntE(opt_App_Dispatch_PACKET_ADD_OUTPUT);
 				}
 				break;      
 			case VS_CMD_DEL_OUTPUT:
@@ -1019,7 +1071,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 									(int32)output->output.index, 
 									(int32)output->output.output);
 
+					gCntB(opt_App_Dispatch_PACKET_DEL_OUTPUT);
 					doDelOutput(client->Id(), p->sequence(), output);
+					gCntE(opt_App_Dispatch_PACKET_DEL_OUTPUT);
 				}
 				break;       
 			case VS_CMD_SWITCH_UNICAST:
@@ -1033,7 +1087,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 					}
 
 					const VS_SWITCH_UNICAST* unicast = reinterpret_cast<const VS_SWITCH_UNICAST*>(p->data());
+					gCntB(opt_App_Dispatch_PACKET_UNICAST);
 					doUnicast(client->Id(), p->sequence(), unicast);
+					gCntE(opt_App_Dispatch_PACKET_UNICAST);
 				}
 				break;   
 			case VS_CMD_SWITCH_MULTICAST:
@@ -1047,7 +1103,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 					}
 
 					const VS_SWITCH_MULTICAST* multicast = reinterpret_cast<const VS_SWITCH_MULTICAST*>(p->data());
+					gCntB(opt_App_Dispatch_PACKET_MULTICAST);
 					doMulticast(client->Id(), p->sequence(), multicast);
+					gCntE(opt_App_Dispatch_PACKET_MULTICAST);
 				}
 				break; 
 			case VS_CMD_RESET_BASE:
@@ -1061,7 +1119,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 					}
 
 					const VS_BASE* base = reinterpret_cast<const VS_BASE*>(p->data());
+					gCntB(opt_App_Dispatch_PACKET_RESET_BASE);
 					doResetBase(client->Id(), p->sequence(), base);
+					gCntE(opt_App_Dispatch_PACKET_RESET_BASE);
 				}
 				break;		
 			case VS_CMD_ONLINE:
@@ -1083,7 +1143,9 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 						return;
 					}
 
+					gCntB(opt_App_Dispatch_PACKET_ONLINE);
 					doOnline(client->Id(), p->sequence(), disp);
+					gCntE(opt_App_Dispatch_PACKET_ONLINE);
 				}
 				break;			
 			case VS_CMD_OFFLINE:
@@ -1104,14 +1166,18 @@ void App::ExecPacket(int err, const Uuid& item, const Packet* p)
 						return;
 					}
 
+					gCntB(opt_App_Dispatch_PACKET_OFFLINE);
 					doOffline(client->Id(), p->sequence(), disp);
+					gCntE(opt_App_Dispatch_PACKET_OFFLINE);
 				}
 				break;
 			case VS_CMD_CLOSEALL:
 				{
 					LOG(LEVEL_INFO, "APP: type=APP_INNER_PACKET, msg=VS_COMMAND, sub=【VS_CMD_CLOSEALL】\r\n");
 
+					gCntB(opt_App_Dispatch_PACKET_CLOSEALL);
 					doCloseAll(client->Id(), p->sequence());
+					gCntE(opt_App_Dispatch_PACKET_CLOSEALL);
 				};
 				break;
 
@@ -1320,6 +1386,9 @@ device::Plugin* App::getplugin(u_int32 type)
 int App::addsignal(Signal* p)
 {
 	_signal_list.push_back(p);
+
+	//插件监视
+	gAddSig(p->id(), p->plugin()->Name(), p->plugin()->Type(), p->signal()->ipaddr, p->signal()->port);
 	return 0l;
 }
 
@@ -1335,7 +1404,9 @@ int App::delsignal(Signal* p)
 			break;
 		}
 	}
-
+	
+	//插件监视
+	gDelSig(p->id());
 	return 0l;
 }
 
@@ -1388,7 +1459,8 @@ int App::doOpen(const Uuid& client, u_int32 sequence, const Uuid& signal_id, con
 	device::Plugin* p = getplugin(signal->type);
 	if(!p)
 	{
-		NetHelper::Return(&_netpump, client, sequence, -1, "Done support this type");
+		LOG(LEVEL_WARNING, "Do not support this type(%d)", signal->type);
+		NetHelper::Return(&_netpump, client, sequence, -1, "Do not support this type");
 		return -1;
 	}
 
@@ -1489,6 +1561,9 @@ int App::doAddOutput(const Uuid& client, u_int32 sequence, const VS_ADD_OUTPUT* 
 	
 	//
 	NetHelper::Return(&_netpump, client, sequence, 0, "");
+
+	//插件监视
+	gAddOutput(output->signal_id, output->output.ipaddr, output->output.port, output->output.output, output->output.index);
 	return 0l;
 }
 
@@ -1513,6 +1588,9 @@ int App::doDelOutput(const Uuid& client, u_int32 sequence, const VS_DEL_OUTPUT* 
 
 	//
 	NetHelper::Return(&_netpump, client, sequence, 0, "");
+	
+	//插件监视
+	gDelOutput(output->signal_id, output->output.ipaddr, output->output.port, output->output.output, output->output.index);
 	return 0l;
 
 }
@@ -1533,6 +1611,9 @@ int App::doUnicast(const Uuid& client, u_int32 sequence, const VS_SWITCH_UNICAST
 
 	//
 	NetHelper::Return(&_netpump, client, sequence, 0, "");
+	
+	//插件监视
+	gUnicast(unicast->signal_id);
 	return 0l;
 }
 
@@ -1554,6 +1635,9 @@ int App::doMulticast(const Uuid& client, u_int32 sequence, const VS_SWITCH_MULTI
 
 	//
 	NetHelper::Return(&_netpump, client, sequence, 0, "");
+	
+	//插件监视
+	gMulticast(multicast->signal_id, multicast->ipaddr, multicast->port);
 	return 0l;
 
 }
@@ -1768,22 +1852,14 @@ int App::doAudio(const Uuid& item, const P_AUDIO* audio)
 
 int App::doVideo(const Uuid& item, const P_VIDEO* video)
 {
-	// 
-	if(g_dif < 0)
-	{
-		TimeDiffer td("doVideo");
+	//
 	Uuid ts;
 	Message *m = new Message(TRANSFER_CMD_VIDEO_DATA, sizeof(P_VIDEO) + video->datalen, video);
 	_transfer.Command_RefMessage(ts, 0, m);
-	}
-	else
-	{
-		Uuid ts;
-		Message *m = new Message(TRANSFER_CMD_VIDEO_DATA, sizeof(P_VIDEO) + video->datalen, video);
-		_transfer.Command_RefMessage(ts, 0, m);
-	}
 	
-#if 0//def OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_App) != 0)
+{
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
@@ -1796,12 +1872,12 @@ int App::doVideo(const Uuid& item, const P_VIDEO* video)
 	{
 		OPT_MEM* omem = (OPT_MEM*)video->data;
 		pthread_t self_id = pthread_self();
-		LOG(LEVEL_INFO, "thread=%d:%u, g_cnt(%d,%d,%d,%d, %d, %d,%d,%d,%d,%d,%d,%d), SEND >> data=%d, size=%d. stamp=%llu, nowtime=%llu, interval=%ld.\n"
+		LOG(LEVEL_INFO, "thread=%d:%u, SEND >> data=%d, size=%d. stamp=%llu, nowtime=%llu, interval=%ld.\n"
 			, (int)self_id.p, self_id.x
-			, g_cnt[0], g_cnt[1], g_cnt[2], g_cnt[3], g_cnt[4], g_cnt[5], g_cnt[6], g_cnt[7], g_cnt[8], g_cnt[9], g_cnt[10], g_cnt[11]
 			, (int)omem->memData, omem->memLen, video->timestamp, nowtime, l_dif);
 	}
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 	return 0l;
 }
 

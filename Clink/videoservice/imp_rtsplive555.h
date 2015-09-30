@@ -121,7 +121,8 @@ public:
 		memset(&_lastFrameDetail, 0, sizeof(_lastFrameDetail));
 		_lastFrameDetail.frameBuffer = new char[4*1024*1024];
 		
-		sumObj++;
+		//
+		sumObj = ::InterlockedIncrement((unsigned int*)&sumObj);
 		curObj = sumObj;
 		LOG(LEVEL_INFO, "ypeng@ rtsp(%u) Construction success, object's tagNum=%d.\n", this, curObj);
 
@@ -140,7 +141,8 @@ public:
 			delete [] _timeRecord;
 		}
 		
-		sumObj--;
+		//
+		sumObj = ::InterlockedDecrement((unsigned int*)&sumObj);
 		LOG(LEVEL_INFO, "ypeng@ rtsp(%u) Deconstruction success, object's tagNum=%d, remAll=%d.\n", this, curObj, sumObj);
 	}
 	

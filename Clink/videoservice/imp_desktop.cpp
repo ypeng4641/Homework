@@ -12,6 +12,7 @@
 #include "vscreen/shmem.h"
 //#include "rawdecode-sdk.h"
 static bool _hasConnect = false;
+static int _objCount = 0;
 static pthread_mutex_t g_conn_mutex = PTHREAD_MUTEX_INITIALIZER;
 class Self_Clink_Play: public Instance
 {
@@ -38,7 +39,8 @@ public:
 		{
 			memset(&_defext, 0, sizeof(_defext));
 		}
-
+		_objCount++;
+		LOG(LEVEL_DEBUG,"Construct Objective Num = %d",_objCount);
 	//	_hasConnect = false;
 		_sock = -1;
 	}
@@ -55,6 +57,14 @@ public:
 			delete[] _buf2;
 		}
 
+		_objCount--;
+		LOG(LEVEL_DEBUG,"DeConstruct Objective Num = %d",_objCount);
+
+	}
+public:
+	bool getLinkState()
+	{
+		return _hasConnect;
 	}
 
 private:
@@ -850,16 +860,26 @@ private:
 		DT_BLOCK_t*		 block  = (DT_BLOCK_t*)blocks->blocklist;
 
 		u_int64 stamp = GetCurTime();
+		static int flag_count = 0;
+		if(flag_count%30==0)
+		{
+			struct tm *ptr;
+			time_t lt;
+			lt =time(NULL);
+			char *str_time = ctime(&lt);
+			LOG(LEVEL_INFO,"DeskTop::current time=%s,block.num=%d,block.frametype=%d",str_time,blocks->num,block[0].streamType);
+		}
+		flag_count++;
 //		LOG(LEVEL_INFO,"ssm::time=%ul",stamp);
 		for (int i = 0; i < blocks->num; i++)
 		{
-			if (NULL == block[i].shemID || 0 == block[i].framesize)
+			if (NULL == block[i].shmName || 0 == block[i].framesize)
 			{
 				continue;
 			}
 	//		LOG(LEVEL_INFO,"ssm:::BlockID");
 			Shmem shmem;
-			if (shmem.Open(block[i].shemID, block[i].framesize))
+			if (shmem.Open(block[i].shmName, block[i].framesize))
 			{
 				//IPMS_FRAME_TYPE_t type = GetFrameType((char*)shmem.Ptr(),block[i].framesize);
 				///发送码流数据
@@ -884,7 +904,8 @@ private:
 			}
 			else
 			{
-				LOG(LEVEL_INFO, "shemID:%d, size:%d", block[i].shemID, block[i].framesize);
+				req_error(XVIDEO_PLUG_NODATA_ERR);
+				LOG(LEVEL_INFO, " size:%d",  block[i].framesize);
 			}
 
 		}
@@ -897,13 +918,13 @@ private:
 
 		for (int i = 0; i < blocks->num; i++)
 		{
-			if (NULL == block[i].shemID || 0 == block[i].framesize)
+			if (NULL == block[i].shmName  || 0 == block[i].framesize)
 			{
 				continue;
 			}
 
 			Shmem shmem;
-			if (shmem.Open(block[i].shemID, block[i].framesize))
+			if (shmem.Open(block[i].shmName,block[i].framesize))
 			{
 				shmem.SetStatus(FRAME_STATUS_FREE);
 			}
@@ -919,14 +940,12 @@ private:
 			req_error(XVIDEO_PLUG_CONNECT_ERR);
 			return;
 		}
-	//	LOG(LEVEL_INFO,"ssm:::Connect!\n");
 		if(!Login(_sock))
 		{
 			Disconnect();
 			LOG(LEVEL_ERROR,"Login Failed!\n");
 			return ;
 		}
-	//	LOG(LEVEL_INFO,"ssm:::Login!\n");
 		if(!Play())
 		{
 			LOG(LEVEL_ERROR,"Play Failed!\n");
@@ -934,7 +953,6 @@ private:
 			Disconnect();
 			return;
 		}
-	//	LOG(LEVEL_INFO,"ssm:::Play!\n");
 		X_PACKAGE_t* LastPacket = NULL;
 
 		while(!isexit())		//循环接收取数据指令
@@ -948,7 +966,6 @@ private:
 
 			if (nfds > 0 && FD_ISSET(_sock, &fds))
 			{			
-		//		LOG(LEVEL_INFO,"ssm::Select!");
 				int cmdLen = XProtocol::ReadPackLen(_sock);
 				if (cmdLen < 0)
 				{
@@ -1057,6 +1074,12 @@ void* imp_clink_play_open(const VS_SIGNAL* signal, SigCB cb, void* context, cons
 	Self_Clink_Play* i = new Self_Clink_Play(signal, cb, context, item);
 	if(!i)
 	{
+		return NULL;
+	}
+	
+	if(i->getLinkState())
+	{
+		LOG(LEVEL_WARNING,"&&&&&&&&&&&&&&&DeskTop::Has Already Connect to Desktop Server,exit!!!!!!!!");
 		return NULL;
 	}
 

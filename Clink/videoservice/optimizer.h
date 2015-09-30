@@ -2,18 +2,16 @@
 #define _OPTIMIZER_H_
 
 #include <memory>
+#include <string>
+
+#include "NvtHelper.h"
+using namespace _NVT;
+
 /*
 **将内存传递替换成内存指针传递
 **涉及Plugin，Dispatch，App
 */
 #define OPT_MEM_TO_PTR
-
-void mydel(char* p);
-
-struct //OPT_SHR_MEM
-{
-	std::shared_ptr<char> sp;
-};
 
 struct OPT_MEM
 {
@@ -41,7 +39,7 @@ struct OPT_MEM
 
 /*
 **打印输出
-**涉及Dispatch, __send_buf
+**涉及Dispatch, __send_buf, App, Transfer, Plugin, TfVideoOutput
 */
 //#define OPT_DEBUG_OUT
 
@@ -51,8 +49,10 @@ extern unsigned long long g_app_preTime2;
 extern int g_plugin_nowtime[30];
 extern int g_plugin_cnt;
 
-extern int g_cnt[50];
-
+/*
+**测试代码段执行时间
+**未使用
+*/
 class TimeDiffer
 {
 public:

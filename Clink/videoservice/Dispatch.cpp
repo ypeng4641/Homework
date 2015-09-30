@@ -11,26 +11,160 @@
 
 Dispatch* Dispatch::_instance = NULL;
 
-long g_dif = 0l;
-unsigned long long g_app_preTime = 0;
-unsigned long long g_app_preTime2 = 0;
-
-int g_plugin_nowtime[30] = {0};
-int g_plugin_cnt = 0;
-
-int g_cnt[50] = {0};
-
-
 Dispatch::Dispatch(void)
 {
+	//pthread_rwlock_init(&_opLock, NULL);
+
+	for(int i = 0; i < CAPACITY; i++)
+	{
+		ITEMS items;
+		_outportCan.insert(OUTPORTS::value_type(new Outport(i), items));
+	}
 }
 
 
 Dispatch::~Dispatch(void)
 {
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		delete it->first;
+		it->second.clear();
+	}
+	_outportCan.clear();
+
+	//pthread_rwlock_destroy(&_opLock);
 }
 
 int Dispatch::Init()
+{
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		it->first->Init();
+	}
+
+	return 0;
+}
+
+int Dispatch::Deinit()
+{
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		it->first->Deinit();
+	}
+
+	return 0;
+}
+
+int Dispatch::add(u_int32 ipaddr, u_int16 port)
+{
+	//pthread_rwlock_wrlock(&_opLock);
+
+	Outport* op = _outportCan.begin()->first;
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		if(it->second.size() < _outportCan[op].size())
+		{
+			op = it->first;
+		}
+		else
+		{
+			continue;
+		}
+	}
+	_outportCan[op].insert(ITEMID(ipaddr, port));
+
+	//telnet监视用
+	g_OutputList.insert(ITEMID(ipaddr, port));
+	//pthread_rwlock_unlock(&_opLock);
+
+	LOG(LEVEL_INFO, "Outport(%d) size(%d) add!\n", (int)op, _outportCan[op].size());
+	return op->add(ipaddr, port);
+}
+
+int Dispatch::del(u_int32 ipaddr, u_int16 port)
+{
+	//pthread_rwlock_wrlock(&_opLock);
+
+	Outport* op = NULL;//_outportCan.begin()->first;
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		if(it->second.find(ITEMID(ipaddr, port)) != it->second.end())
+		{
+			op = it->first;
+			break;
+		}
+	}
+
+	if(NULL == op)
+	{
+		LOG(LEVEL_INFO, "Can't find output(%x:%hu).\n", ipaddr, port);
+		return -1;
+	}
+
+	_outportCan[op].erase(ITEMID(ipaddr, port));
+
+	//telnet监视用
+	g_OutputList.erase(ITEMID(ipaddr, port));
+	//pthread_rwlock_unlock(&_opLock);
+	
+	LOG(LEVEL_INFO, "Outport(%d) size(%d) del!\n", (int)op, _outportCan[op].size());
+	return op->del(ipaddr, port);
+}
+
+int Dispatch::push(u_int32 ipaddr, u_int16 port, AUTOMEM* mem)
+{
+	//pthread_rwlock_rdlock(&_opLock);
+
+	Outport* op = _outportCan.begin()->first;
+	for(OUTPORTS::iterator it = _outportCan.begin(); it != _outportCan.end(); it++)
+	{
+		if(it->second.find(ITEMID(ipaddr, port)) != it->second.end())
+		{
+			op = it->first;
+			break;
+		}
+	}
+
+	//pthread_rwlock_unlock(&_opLock);
+
+	return op->push(ipaddr, port, mem);
+}
+
+
+/********************************--Outport class--*********************************/
+Outport::Outport(int i) : _port_segment(i)
+{
+}
+
+Outport::~Outport()
+{
+	for(std::list<data_common*>::iterator it = _command_list.begin(); it != _command_list.end(); it++)
+	{
+		delete (*it);
+	}
+	_command_list.clear();
+
+	for(std::map<u_int64,item*>::iterator it = _item_list.begin(); it != _item_list.end(); it++)
+	{
+		// 
+		for(std::list<packet*>::iterator it2 = (*it).second->packet_list.begin();
+			it2 != (*it).second->packet_list.end();
+			it2++)
+		{
+			gCntE(opt_AUTOMEM_Output);
+			AUTOMEM* mem = (AUTOMEM*)(*it2)->data;
+			mem->release();
+
+			delete (*it2);
+		}
+
+		//
+		delete (it->second);
+	}
+	_item_list.clear();
+}
+
+int Outport::Init()
 {
 	//
 	pthread_mutex_init(&_mutex, NULL);
@@ -45,7 +179,7 @@ int Dispatch::Init()
 			sockaddr_in sa;
 			sa.sin_family = AF_INET;
 			sa.sin_addr.s_addr = INADDR_ANY;//inet_addr("127.0.0.1");
-			sa.sin_port = htons(FIRST_PORT + j);
+			sa.sin_port = htons(FIRST_PORT + _port_segment*1000 + j);
 			if(bind(s, (sockaddr*)&sa, sizeof(sa)) != SOCKET_ERROR)
 			{
 				break;
@@ -85,7 +219,7 @@ int Dispatch::Init()
 	return 0l;
 }
 
-int Dispatch::Deinit()
+int Outport::Deinit()
 {
 	//
 	if(EndThread() != 0)
@@ -108,6 +242,7 @@ int Dispatch::Deinit()
 	{
 		Network::Close((*it));
 	}
+	_socket_pool.clear();
 
 	//
 	pthread_mutex_destroy(&_mutex);
@@ -116,9 +251,9 @@ int Dispatch::Deinit()
 	return 0l;
 }
 
-int Dispatch::BeginThread()
+int Outport::BeginThread()
 {
-	if(pthread_create(&_thread, NULL, Dispatch::ThreadFunc, this) != 0)
+	if(pthread_create(&_thread, NULL, Outport::ThreadFunc, this) != 0)
 	{
 		return -1;
 	}
@@ -126,7 +261,7 @@ int Dispatch::BeginThread()
 	return 0l;
 }
 
-int Dispatch::EndThread()
+int Outport::EndThread()
 {
 	//
 	exitloop();
@@ -138,7 +273,7 @@ int Dispatch::EndThread()
 	return 0l;
 }
 
-int Dispatch::add(u_int32 ipaddr, u_int16 port)
+int Outport::add(u_int32 ipaddr, u_int16 port)
 {
 	data_add* d = new data_add;
 	d->cmd = cmd_add;
@@ -150,7 +285,7 @@ int Dispatch::add(u_int32 ipaddr, u_int16 port)
 	return 0l;
 }
 
-int Dispatch::del(u_int32 ipaddr, u_int16 port)
+int Outport::del(u_int32 ipaddr, u_int16 port)
 {
 	data_del* d = new data_del;
 	d->cmd = cmd_del;
@@ -162,8 +297,9 @@ int Dispatch::del(u_int32 ipaddr, u_int16 port)
 	return 0l;
 }
 
-int Dispatch::push(u_int32 ipaddr, u_int16 port, AUTOMEM* mem)
+int Outport::push(u_int32 ipaddr, u_int16 port, AUTOMEM* mem)
 {
+	gCntB(opt_AUTOMEM_Output);
 	mem->ref();
 
 	data_push* d = new data_push;
@@ -179,7 +315,7 @@ int Dispatch::push(u_int32 ipaddr, u_int16 port, AUTOMEM* mem)
 }
 
 
-int Dispatch::command(data_common* d)
+int Outport::command(data_common* d)
 {
 	pthread_mutex_lock(&_mutex); 
 	_command_list.push_back(d);
@@ -197,7 +333,7 @@ int Dispatch::command(data_common* d)
 
 }
 
-Dispatch::data_common* Dispatch::command()
+Outport::data_common* Outport::command()
 {
 	//
 	char flag = 0x0;
@@ -222,21 +358,21 @@ Dispatch::data_common* Dispatch::command()
 	return ret;
 }
 
-int Dispatch::exitloop()
+int Outport::exitloop()
 {
 	char flag = 0x0;
 	::send(_exit[0], &flag, sizeof(flag), 0);
 	return 0l;
 }
 
-void* Dispatch::ThreadFunc(void* data)
+void* Outport::ThreadFunc(void* data)
 {
-	Dispatch* pThis = reinterpret_cast<Dispatch*>(data);
+	Outport* pThis = reinterpret_cast<Outport*>(data);
 	pThis->Run();
 	return NULL;
 }
 
-void Dispatch::Run()
+void Outport::Run()
 {
 	u_int64 basetime = Counter::instance()->tick();
 
@@ -284,7 +420,7 @@ void Dispatch::Run()
 	}
 }
 
-void Dispatch::process(data_common* d)
+void Outport::process(data_common* d)
 {
 	if(d->cmd == cmd_push)
 	{
@@ -295,9 +431,25 @@ void Dispatch::process(data_common* d)
 		{
 #ifdef OPT_MEM_TO_PTR
 			AUTOMEM* mem = (AUTOMEM *)p->data;
-			VS_VIDEO_PACKET* vsp = reinterpret_cast<VS_VIDEO_PACKET*>(mem->get());
-			int sc = SplitFrame_Push(vsp, &((*it).second->packet_list));
-			mem->release();
+			if(mem->isVideo())
+			{
+				VS_VIDEO_PACKET* vsp = reinterpret_cast<VS_VIDEO_PACKET*>(mem->get());
+				int sc = SplitFrame_Push(vsp, &((*it).second->packet_list));
+
+				gCntE(opt_AUTOMEM_Output);
+				mem->release();
+				LOG(LEVEL_INFO, "vsp, frameno(%u), stamp(%llu)", vsp->framenum, vsp->timestamp);
+			}
+			else
+			{
+				packet* m = new packet;
+				m->datalen = 0; //no use
+				m->data = p->data;
+
+				(*it).second->packet_list.push_back(m);
+				VS_AUDIO_PACKET* asp = reinterpret_cast<VS_AUDIO_PACKET*>(mem->get());
+				LOG(LEVEL_INFO, "asp, frameno(%u), stamp(%llu)", asp->framenum, asp->timestamp);
+			}
 #else
 			packet* m = new packet;
 			m->datalen = 0; //no use
@@ -308,11 +460,12 @@ void Dispatch::process(data_common* d)
 		}
 		else
 		{
+			gCntE(opt_AUTOMEM_Output);
 			AUTOMEM* mem = (AUTOMEM *)p->data;
 			mem->release();
 		}
 
-		delete p;		
+		delete p;
 	}
 	else if(d->cmd == cmd_add)
 	{
@@ -339,6 +492,7 @@ void Dispatch::process(data_common* d)
 				it2 != (*it).second->packet_list.end();
 				it2++)
 			{
+				gCntE(opt_AUTOMEM_Output);
 				AUTOMEM* mem = (AUTOMEM*)(*it2)->data;
 				mem->release();
 
@@ -360,7 +514,7 @@ void Dispatch::process(data_common* d)
 	}
 }
 
-void Dispatch::send(int loop)
+void Outport::send(int loop)
 {
 	if(loop > 4)
 	{
@@ -413,14 +567,8 @@ void Dispatch::send(int loop)
 										
 					// 
 					__send_buf(_socket_pool[p1->port % SOCKET_POOL_SIZE], p1->ipaddr, p1->port, mem->size(), mem->get());
-									
-					static int i=0;
-					if((i++ % 1000) == 0)
-					{
-						//LOG(LEVEL_INFO, "------send %08X:%d, size=%d", p1->ipaddr, (u_int32)p1->port, mem->size());
-					}
-					
-#ifdef OPT_DEBUG_OUT
+
+//#ifdef OPT_DEBUG_OUT
 	VS_VIDEO_PACKET* packet = (VS_VIDEO_PACKET*)mem->get();
 
 	struct timeval tv;
@@ -430,25 +578,29 @@ void Dispatch::send(int loop)
 
 	g_dif = packet->timestamp - nowtime;
 
-	if(g_dif < 0)//(packet->slicecnt > 3 || g_dif < 0)
+if((g_dbgClass & opt_Dispatch) != 0)
+{
+	if(packet->slicecnt > 3 || g_dif < 0)
 	{
 		union
 		{
 			unsigned char v[4];
 			unsigned int  value;
 		}ip;
+
 		ip.value = p1->ipaddr;
 	
 		pthread_t self_id = pthread_self();
-		LOG(LEVEL_INFO, "thread=%d:%u, packet.size=%d, loop=%d, SEND >> addr=%d.%d.%d.%d, port=%d, size=%d. stamp=%llu, framenum=%u, slicecnt=%u, slicenum=%u,nowtimestamp=%llu, dif=%ld.\n"
+		LOG(LEVEL_INFO, "thread=%d:%u, packet.size=%d, loop=%d, SEND >> addr=%d.%d.%d.%d, port=%d. stamp=%llu, framenum=%u, slicecnt=%u, slicenum=%u,nowtimestamp=%llu, dif=%ld.\n"
 			, (int)self_id.p, self_id.x
 			, p1->packet_list.size(), loop
 			, ip.v[3], ip.v[2], ip.v[1], ip.v[0], p1->port
-			, mem->size(), packet->timestamp, packet->framenum, packet->slicecnt, packet->slicenum, nowtime, g_dif);
+			, packet->timestamp, packet->framenum, packet->slicecnt, packet->slicenum, nowtime, g_dif);
 	}
-#endif
-
-					// 
+}
+//#endif//OPT_DEBUG_OUT
+					//
+					gCntE(opt_AUTOMEM_Output);
 					mem->release();
 					delete p2;
 					p1->packet_list.pop_front();
@@ -468,11 +620,11 @@ void Dispatch::send(int loop)
 	}
 }
 
-
-int Dispatch::SplitFrame_Push(VS_VIDEO_PACKET* vsp, std::list<packet*>* plp)
+int Outport::SplitFrame_Push(VS_VIDEO_PACKET* vsp, std::list<packet*>* plp)
 {
 	//取出内存结构体，获取码流数据
 	OPT_MEM* omem = (OPT_MEM*)vsp->data;
+//	OPT_SHR_MEM* om_data = (OPT_SHR_MEM*)omem->memData;
 
 	unsigned int slicecnt = omem->memLen / VDATA_SLICE_LEN;
 	if(omem->memLen % VDATA_SLICE_LEN != 0)
@@ -495,6 +647,7 @@ int Dispatch::SplitFrame_Push(VS_VIDEO_PACKET* vsp, std::list<packet*>* plp)
 		//
 		unsigned int sumlen = sizeof(VS_VIDEO_PACKET) + data_size;
 
+		gCntB(opt_AUTOMEM_Output);
 		AUTOMEM* mem = new AUTOMEM(sumlen);
 		VS_VIDEO_PACKET* vspSlice = reinterpret_cast<VS_VIDEO_PACKET*>(mem->get());
 
@@ -516,6 +669,7 @@ int Dispatch::SplitFrame_Push(VS_VIDEO_PACKET* vsp, std::list<packet*>* plp)
 		vspSlice->frametype = vsp->frametype;
 		vspSlice->datalen = data_size;
 		memcpy(vspSlice->data, omem->memData + used_len, data_size);
+		//memcpy(vspSlice->data, om_data->sp.get() + used_len, data_size);
 
 		//
 		used_len += data_size;
@@ -528,5 +682,8 @@ int Dispatch::SplitFrame_Push(VS_VIDEO_PACKET* vsp, std::list<packet*>* plp)
 	}
 
 	//delete[] omem->memData;
+	//共享指针的回收随VideoSlice
+	//delete om_data;
+	//om_data = NULL;
 	return i;
 }

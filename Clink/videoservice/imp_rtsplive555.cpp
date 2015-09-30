@@ -212,6 +212,11 @@ void Self_RTSP_live555::doStreamCallback(int channel, int dataSize, char* data, 
 			req_desc();
 		}
 
+		if (!_is_video_valid)
+		{
+			return;
+		}
+
 		if (_audio_stamp.tv_sec != info.timestamp.tv_sec || _audio_stamp.tv_usec != info.timestamp.tv_usec)
 		{
 			if (_audio_frame.size() > 0)
@@ -556,7 +561,7 @@ unsigned int Self_RTSP_live555::GetFrameType(unsigned char* data, int size, unsi
 
 		if (_is_audio_valid)
 		{
-			Instance::req_desc(1, &_audiodesc, 0, NULL);
+			//Instance::req_desc(1, &_audiodesc, 0, NULL);
 			return;
 		}
 

@@ -535,7 +535,8 @@ public:
 	}
 	void ref()
 	{
-		cnt++;
+		//cnt++;
+		::InterlockedIncrement((unsigned int*)&cnt);
 	}
 	int count()
 	{
@@ -543,7 +544,8 @@ public:
 	}
 	void release()
 	{
-		if((--cnt) == 0)
+		//if((--cnt) == 0)
+		if(::InterlockedDecrement((unsigned int*)&cnt) == 0)
 		{
 			if(isVVP)
 			{
@@ -558,6 +560,11 @@ public:
 			delete[] data;
 			delete this;
 		}
+	}
+
+	bool isVideo(void)
+	{
+		return isVVP;
 	}
 private:
 	int cnt;

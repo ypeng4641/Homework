@@ -28,6 +28,7 @@ TfVideoSource::~TfVideoSource(void)
 	{
 		delete it->second;
 	}
+	_group_map.clear();
 
 	//
 	for(std::list<VideoSlice*>::iterator it = _video_list.begin();
@@ -37,6 +38,7 @@ TfVideoSource::~TfVideoSource(void)
 		//多播队列回收
 		(*it)->release();
 	}
+	_video_list.clear();
 
 	//
 	for(std::list<VideoSlice*>::iterator it = _ipppp_list.begin();
@@ -46,6 +48,7 @@ TfVideoSource::~TfVideoSource(void)
 		//ippp队列回收
 		(*it)->release();
 	}
+	_ipppp_list.clear();
 
 	if(_is_multicast)
 	{

@@ -61,14 +61,17 @@ public:
 		{
 			_channel = 0;
 		}
-		sumObj++;
+
+		//
+		sumObj = ::InterlockedIncrement((unsigned int*)&sumObj);
 		curObj = sumObj;
 		LOG(LEVEL_INFO, "ypeng@ vi04(%u),Construction success, _channel=%d, object's tagNum=%d\n", this, _channel, curObj);
 	}
 
 	~Self_VI04()
 	{
-		sumObj--;
+		//
+		sumObj = ::InterlockedDecrement((unsigned int*)&sumObj);
 		LOG(LEVEL_INFO, "ypeng@ vi04(%u),Deconstruction success, object's tagNum=%d, remAll=%d.\n", this, curObj, sumObj);
 	}
 

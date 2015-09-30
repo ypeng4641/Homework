@@ -575,6 +575,8 @@ void Transfer::doAudio(const Uuid& tranId, unsigned int step, const P_AUDIO* p)
 	TfSignal* s = get(p->item);
 	if(!s)
 	{
+		LOG(LEVEL_ERROR, "################Can't find TfSignal.\n");
+
 		ret_status(tranId, step, -1);
 		return;
 	}
@@ -590,7 +592,9 @@ void Transfer::doVideo(const Uuid& tranId, unsigned int step, const P_VIDEO* p)
 	TfSignal* s = get(p->item);
 	if(!s)
 	{
+		buf_rcl(p);
 		LOG(LEVEL_ERROR, "################Can't find TfSignal.\n");
+
 		ret_status(tranId, step, -1);
 		return;
 	}

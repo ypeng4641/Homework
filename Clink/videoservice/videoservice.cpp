@@ -21,8 +21,18 @@
 
 #include "Counter.h"
 #include "optimizer.h"
+#include "NvtHelper.h"
 
+#ifdef _WIN32
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
+
+#ifdef _DEBUG
 #include "vld\vld.h"
+#endif
 
 static bool isrun = true;
 
@@ -39,10 +49,21 @@ LONG WINAPI exception_filter(struct _EXCEPTION_POINTERS* ExceptionInfo)
 	struct timeval tv;
 	gettimeofday(&tv, NULL);
 
-	sprintf_s(buf, "%u", ::GetTickCount());
+#if 0
+	sprintf_s(buf, "%u", tv.tv_sec % 5);//::GetTickCount());
 
 	std::string workpath = getWork() + "crash_dump_" + buf;
-    HANDLE lhDumpFile = CreateFile(workpath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL ,NULL);
+    HANDLE lhDumpFile = CreateFileA(workpath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL ,NULL);
+#else
+	sprintf_s(buf, "%u", SERVICE_PORT % 10);//tv.tv_sec % 5);//::GetTickCount());
+
+	std::string workpath = getWork() + "crash_dump_" + buf;
+    HANDLE lhDumpFile = CreateFileA(workpath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL ,NULL);
+	if(INVALID_HANDLE_VALUE == lhDumpFile)
+	{
+		return EXCEPTION_EXECUTE_HANDLER;
+	}
+#endif
  
     MINIDUMP_EXCEPTION_INFORMATION loExceptionInfo;
     loExceptionInfo.ExceptionPointers = ExceptionInfo;
@@ -66,6 +87,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 
 	log_init(NULL);
+
+	//telnet服务端
+	NvtHelper nvt_sv(DBG_PORT);
+	nvt_sv.run();
 
 	if(Counter::instance()->init() != 0)
 	{
@@ -117,6 +142,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	LOG(LEVEL_INFO, "Deinit Application Success");
 
 	Counter::instance()->deinit();
+
+	//telnet服务端
+	nvt_sv.quit();
 
 	log_deinit();
 

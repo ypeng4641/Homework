@@ -1376,48 +1376,39 @@ bool H264Parse::GetResolution(uint8_t* buffer, uint32_t buffer_lenght, uint16_t*
 {
 	NALHeader head;
 	memset(&head, 0, sizeof(head));
-	
-	if (H264Parse::CheckNal((uint8_t*)buffer, buffer_lenght, &head))
-	{
-		NalRbsp rbsp(4096);
-		if (H264Parse::GetRBSP(&head, &rbsp))
-		{
-			SPS sps;
-			if (H264Parse::GetSeqParameterSet(&rbsp, &sps))
-			{
-				uint16_t w = 0;
-				uint16_t h = 0;
-				if (H264Parse::GetFrameSize(sps, &w, &h))
-				{
-					//printf("============================ %dx%d\n", w, h);
 
-					if (width)  *width = w;
-					if (height) *height = h;
-					return true;
-				}
+	if (!H264Parse::CheckNal((uint8_t*)buffer, buffer_lenght, &head))
+	{
+		return false;
+	}
+	
+	if (head.nal_unit_type != 7)
+	{
+		return false;
+
+		/*buffer += head.nal_length;
+		buffer_lenght -= head.nal_length;
+		return GetResolution(buffer + head.nal_length, buffer_lenght - head.nal_length, width, height);*/
+	}
+
+	NalRbsp rbsp(4096);
+	if (H264Parse::GetRBSP(&head, &rbsp))
+	{
+		SPS sps;
+		if (H264Parse::GetSeqParameterSet(&rbsp, &sps))
+		{
+			uint16_t w = 0;
+			uint16_t h = 0;
+			if (H264Parse::GetFrameSize(sps, &w, &h))
+			{
+				printf("============================ %dx%d\n", w, h);
+
+				if (width)  *width = w;
+				if (height) *height = h;
+				return true;
 			}
 		}
-
-		return false;
 	}
 
-
-	unsigned char start_code[4] = {0x00, 0x00, 0x00, 0x01};
-	if ((buffer[0] & 0x1f) != 7)
-	{
-		return false;
-	}
-
-	const int MAX_BUF_SIZE = 512;
-	if (buffer_lenght > MAX_BUF_SIZE)
-	{
-		return false;
-	}
-
-	uint8_t sps[sizeof(start_code) + MAX_BUF_SIZE];
-	memset(sps, 0, sizeof(sps));
-	memcpy(sps, start_code, sizeof(start_code));
-	memcpy(sps + sizeof(start_code), buffer, buffer_lenght);
-
-	return GetResolution(sps, sizeof(start_code) + buffer_lenght, width, height);
+	return false;
 }

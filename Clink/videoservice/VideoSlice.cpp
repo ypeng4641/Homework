@@ -99,13 +99,15 @@ VideoSlice::~VideoSlice(void)
 
 VideoSlice* VideoSlice::get()
 {
-	_ref_count++;
+	//_ref_count++;
+	::InterlockedIncrement(&_ref_count);
 	return this;
 }
 
 void VideoSlice::release()
 {
-	if((--_ref_count) == 0)
+	//if((--_ref_count) == 0)
+	if(::InterlockedDecrement(&_ref_count) == 0)
 	{
 		delete this;
 	}

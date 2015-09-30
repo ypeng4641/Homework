@@ -155,19 +155,47 @@ SUCCESS:
 		{
 			return false;
 		}
-
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
 		{
+			LOG(LEVEL_ERROR, "failed, no respond.\n");
 			return false;
 		}
 
-		if(req.head.msgType != 0x8204 || req.head.errCode != 0 || req.port == 0 )
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
+			LOG(LEVEL_ERROR, "Get Packet failed");
+			return false;
+		}
+
+		if(req.head.msgType != 0x8204 || req.head.errCode != 0 || req.head.len <= 0)// || req.port == 0 )
+		{
+			LOG(LEVEL_ERROR, "Wrong header! msgType(%#x), err(%d), len(%d).", req.head.msgType, req.head.errCode, req.head.len);
 			return false;
 		} 
+		else
+		{
+			if(Network::Recvn(sockfd, &req.channel, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Recv Body failed.");
+				return false;
+			}
+		}
 
-		port  = req.port;
-		LOG(LEVEL_INFO, "ypeng@ video_port(%d).\n", port);
+		if(req.port <= 0)
+		{
+			LOG(LEVEL_ERROR, "Wrong msg! port(%d).", req.port);
+			return false;
+		}
+		else
+		{
+			port  = req.port;
+			LOG(LEVEL_INFO, "ypeng@ video_port(%d).\n", port);
+		}
 		return true;
 	}
 

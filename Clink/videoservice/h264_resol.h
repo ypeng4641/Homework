@@ -3,9 +3,6 @@
 #include <string.h>
 #include <assert.h>
 
-//extern ReadResolution* ReadResolution::m_once;
-//must be inintialize in sth.cpp
-
 #ifndef _H264_RESOL_H
 #define _H264_RESOL_H
 
@@ -23,18 +20,9 @@ public:
 	}
 	
 public:
-	static void FindJPGFileResolution(char *cpFileName, int *ipWidth, int *ipHeight) 
+	void FindJPGFileResolution(char *cpFileName, int *ipWidth, int *ipHeight) 
 	{
-		if(NULL == m_once)
-		{
-			m_once = new ReadResolution;
-		}
-		else
-		{
-			m_once->m_pStart = NULL;
-			m_once->m_nLength = 0;
-			m_once->m_nCurrentBit = 0;
-		}
+		resetParam();
 
 		int i;
 
@@ -50,15 +38,15 @@ public:
 		printf("\n\nBuffer size %ld\n", len);   
 		for(i=0;i<len;i++)
 		{           
-			if( 
+			if(
 				(ucpInBuffer[i]==0x00) && (ucpInBuffer[i+1]==0x00) && 
 				(ucpInBuffer[i+2]==0x00) && (ucpInBuffer[i+3]==0x01) 
 			  )
 			{
-				if(ucpInBuffer[i+4] & 0x07 == 0x07)
+				if((ucpInBuffer[i+4] & 0x1f) == 0x07)
 				{
 					int Width, Height;
-					m_once->Parse(&ucpInBuffer[i+5], len, Width, Height);              
+					Parse(&ucpInBuffer[i+5], len, Width, Height);              
 					break;
 				}
 			}       
@@ -68,34 +56,30 @@ public:
 		return;
 	}
 
-	static bool FindJPGFileResolution(const unsigned char * pStart, unsigned short nLen, int& Width, int& Height) 
-	{   
-		if(NULL == m_once)
-		{
-			m_once = new ReadResolution;
-		}
-		else
-		{
-			m_once->m_pStart = NULL;
-			m_once->m_nLength = 0;
-			m_once->m_nCurrentBit = 0;
-		}
+	bool FindJPGFileResolution(const unsigned char * pStart, unsigned short nLen, int& Width, int& Height) 
+	{
+		resetParam();
 
 		int i;  
-		for(i=0;i<nLen;i++)
+		for(i = 0; i < nLen; i++)
 		{           
 			if( 
 				(pStart[i]==0x00) && (pStart[i+1]==0x00) && 
 				(pStart[i+2]==0x00) && (pStart[i+3]==0x01) 
 			  )
 			{
-				if(pStart[i+4] & 0x07 == 0x07)
+				if((pStart[i+4] & 0x1f) == 0x07)
 				{
-					m_once->Parse(&pStart[i+5], nLen, Width, Height);              
+					Parse(&pStart[i+5], nLen, Width, Height);              
 					return true;
+				}
+				else
+				{
+					//LOG(LEVEL_WARNING, "Not I frame!!! flag(%#x).", pStart[i+4]);
 				}
 			}
 		}
+
 		return false;
 	}
 
@@ -104,9 +88,18 @@ private:
 	unsigned short m_nLength;
 	int m_nCurrentBit;
 
-	static ReadResolution* m_once;
+	//static ReadResolution* m_once;
 
 private:
+	bool resetParam(void)
+	{
+		m_pStart = NULL;
+		m_nLength = 0;
+		m_nCurrentBit = 0;
+
+		return true;
+	}
+
 	unsigned int ReadBit()
 	{
 		assert(m_nCurrentBit <= m_nLength * 8);

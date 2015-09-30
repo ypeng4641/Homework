@@ -26,7 +26,8 @@ private:
 
 #pragma pack(pop)
 	
-#define TEST_TIMEOUT		(800)
+#define TEST_TIMEOUT		(200)
+#define VIRTUAL_STAMP		(false)
 
 public:
 	Self_IPMS_Play(const VS_SIGNAL* signal, SigCB cb, void* context, const Uuid& item): Instance(signal, cb, context, item, TEST_TIMEOUT),
@@ -36,7 +37,6 @@ public:
 	{
 		pthread_mutex_init(&_stream_mutex, NULL);
 		
-
 		if(!getext(_defext))
 		{
 			memset(&_defext, 0, sizeof(_defext));
@@ -44,7 +44,8 @@ public:
 		_curVideo_list.clear();
 		_curAudio_list.clear();
 		
-		sumObj++;
+		//
+		sumObj = ::InterlockedIncrement((unsigned int*)&sumObj);
 		curObj = sumObj;
 		LOG(LEVEL_INFO, "ypeng@ ipms_play(%u),Construction success, object's tagNum=%d.\n", this, curObj);
 	}
@@ -63,7 +64,8 @@ public:
 			delete[] _buf2;
 		}
 		
-		sumObj--;
+		//
+		sumObj = ::InterlockedDecrement((unsigned int*)&sumObj);
 		LOG(LEVEL_INFO, "ypeng@ ipms_play(%u),Deconstruction success, object's tagNum=%d, remAll=%d.\n", this, curObj, sumObj);
 	}
 
@@ -420,7 +422,7 @@ private:
 		vdata.codec = frame->media_fmt == IPMS_MEDIA_FMT_H264 ? CODEC_H264 : CODEC_MPEG4;
 
 		vdata.timestamp = frame->timestamp;
-		vdata.useVirtualStamp = true;
+		vdata.useVirtualStamp = VIRTUAL_STAMP;
 
 		vdata.datalen = frame->frame_size;
 		vdata.data = (char*)frame->frame_data;

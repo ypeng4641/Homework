@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <map>
+#include <set>
 #include <x_types/intxx.h>
 #include <x_pattern/netpump.h>
 #include "msg.h"
@@ -11,17 +12,56 @@
 using namespace std;
 using namespace x_pattern;
 
+#define ITEMID(a,b) ((((u_int64)a)<<32) | ((u_int64)b))
+class Outport;
+
 class Dispatch
 {
-#define ITEMID(a,b) ((((u_int64)a)<<32) | ((u_int64)b))
+#define CAPACITY (4)
+private:
+	Dispatch(void);
+	~Dispatch(void);
+
+public:
+	int Init();
+	int Deinit();
+
+public:
+	int add(u_int32 ipaddr, u_int16 port);
+	int del(u_int32 ipaddr, u_int16 port);
+	int push(u_int32 ipaddr, u_int16 port, AUTOMEM* mem);
+
+public:
+	static Dispatch* instance()
+	{
+		if(!_instance)
+		{
+			_instance = new Dispatch();
+		}
+
+		return _instance;
+	}
+
+private:
+	static Dispatch* _instance;
+
+	typedef std::set<u_int64> ITEMS;
+	typedef std::map<Outport*, ITEMS> OUTPORTS;
+	OUTPORTS _outportCan;
+	pthread_rwlock_t _opLock;
+
+};//Dispatch
+
+class Outport
+{
 private:
 	enum 
 	{
-		SOCKET_POOL_SIZE = 32,
+		SOCKET_POOL_SIZE = 13,
 		FIRST_PORT = 34200,
 
-		TICK_COUNT = 200,
-		TICK_TIME = 1000000 / TICK_COUNT,
+		TICK_COUNT = 200,					//调整缓存临界
+		TICK_TIME = 1000000 / TICK_COUNT,	//发送数据间隔
 
 		UDP_SLICE_LEN = 32 * 1024,			//udp分片大小
 		VDATA_SLICE_LEN = UDP_SLICE_LEN - sizeof(VS_VIDEO_PACKET), //每片包含视频数据大小
@@ -75,10 +115,10 @@ private:
 		std::list<packet*>	packet_list;
 	};
 
-private:
-	Dispatch(void);
-	~Dispatch(void);
-
+public:
+	Outport(int i);
+	~Outport(void);
+	
 public:
 	int Init();
 	int Deinit();
@@ -109,20 +149,6 @@ private:
 private:
 	void Run();
 
-public:
-	static Dispatch* instance()
-	{
-		if(!_instance)
-		{
-			_instance = new Dispatch();
-		}
-
-		return _instance;
-	}
-
-private:
-	static Dispatch* _instance;
-
 private:
 	evutil_socket_t _pipe[2];
 	evutil_socket_t _exit[2];
@@ -140,8 +166,9 @@ private:
 	std::vector<SOCKET>	_socket_pool;
 	std::map<u_int64, item*> _item_list;
 	
+	int _port_segment;
 	//测试使用
 private:
 	int m_preFrameNo;
-};
 
+};//Outport

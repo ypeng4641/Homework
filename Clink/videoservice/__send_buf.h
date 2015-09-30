@@ -20,11 +20,13 @@ inline void __send_buf(SOCKET s, u_int32 ipaddr, u_int16 port, unsigned int data
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(ipaddr);
 	addr.sin_port = htons(port);
-
+	
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_send_buf) != 0)
+{
 	VS_VIDEO_PACKET* packet = (VS_VIDEO_PACKET*)data;
 
-#ifdef OPT_DEBUG_OUT
-	if(false)//(packet->slicecnt > 3 || g_dif < 0)
+	if(packet->slicecnt > 3 || g_dif < 0)
 	{
 		union
 		{
@@ -46,7 +48,8 @@ inline void __send_buf(SOCKET s, u_int32 ipaddr, u_int16 port, unsigned int data
 			, ip.v[3], ip.v[2], ip.v[1], ip.v[0], port
 			, datalen, packet->timestamp, packet->framenum, packet->slicecnt, packet->slicenum, timestamp, g_dif);
 	}
-#endif
+}
+//#endif//OPT_DEBUG_OUT
 
 	::sendto(s, data, datalen, 0, (struct sockaddr*)&addr, sizeof(addr));
 

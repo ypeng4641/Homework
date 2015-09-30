@@ -184,7 +184,7 @@ int TfVideoOutput::online(const VS_DISP_CHANGE* p, std::set<u_int32>& group_list
 	}
 	else
 	{
-		LOG(LEVEL_ERROR, "Message has changed! src(%x:%u), now(%x:%u).", _output.ipaddr, _output.port, p->ipaddr, p->port);
+		LOG(LEVEL_ERROR, "Message has changed! src(%x:%hu), now(%x:%hu).", _output.ipaddr, _output.port, p->ipaddr, p->port);
 	}
 
 	return 0l;
@@ -286,7 +286,9 @@ int TfVideoOutput::packet(VideoSlice* p)
 			_video_list.push_back(p->get());
 #endif//OPT_NO_TIMEOUT
 			
-#ifdef OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_TfVideoOutput) != 0)
+{
 	VS_VIDEO_PACKET* packet = (VS_VIDEO_PACKET*)p->slice(0)->get();
 
 	struct timeval tv;
@@ -313,7 +315,8 @@ int TfVideoOutput::packet(VideoSlice* p)
 			, (int)omem->memData, omem->memLen
 			, packet->timestamp, packet->framenum, packet->slicecnt, packet->slicenum, nowtime, l_dif);
 	}
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 		}
 	}
 
@@ -398,7 +401,9 @@ void TfVideoOutput::timeout()
 			{
 				Dispatch::instance()->push(_output.ipaddr, _output.port, (*it)->slice(i));
 				
-#ifdef OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_TfVideoOutput) != 0)
+{
 	VS_VIDEO_PACKET* packet = (VS_VIDEO_PACKET*)(*it)->slice(i)->get();
 
 	struct timeval tv;
@@ -424,11 +429,14 @@ void TfVideoOutput::timeout()
 			, ip.v[3], ip.v[2], ip.v[1], ip.v[0], _output.port
 			, (*it)->slice(i)->size(), packet->timestamp, packet->framenum, packet->slicecnt, packet->slicenum, nowtime, l_dif);
 	}
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 			}
 
 			//单播队列回收
 			(*it)->release();
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
 			it = _video_list.erase(it);
 
 		}

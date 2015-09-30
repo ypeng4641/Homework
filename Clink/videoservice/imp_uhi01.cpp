@@ -56,13 +56,16 @@
 
 		Network::DefaultStream(_req_fd);
 
-		//判断0码流帧率，若为30只获取0码流，否则获取123码流
+		//判断是否需求0码流
+		//需求0码流，帧率若为30fps只获取0码流，否则获取1,3码流
 		int fr = 0;
-		if(! get_video_rate(_req_fd, 0, fr) || fr != 30)
+		if((_stream != 0)
+			||
+			(! get_video_rate(_req_fd, 0, fr) || fr != 30))
 		{
 			FIRST_STREAM_ID = 1;
 			LAST_STREAM_ID = 3;
-			LOG(LEVEL_WARNING, "Stream0 is not 30fps. Take stream 1,2,3 instead!");
+			LOG(LEVEL_WARNING, "Stream0 is not 30fps. Take stream 1,3 instead!");
 		}
 		else
 		{
@@ -79,6 +82,12 @@
 		bool hasone = false;
 		for(int i = 0; i < STREAM_NUM; i++)
 		{
+			//不获取第3路1080P，20fps（streamID == 2）
+			if(2 == (i + FIRST_STREAM_ID))
+			{
+				continue;
+			}
+
 			if(!get_video_res(_req_fd, i + FIRST_STREAM_ID))
 			{
 				//goto FAILED;
@@ -192,6 +201,8 @@ FAILED:
 
 	void Self_HIPC_RGB::disconnect()
 	{
+		paramDeinit();
+
 		if(_get_audio_suc)
 		{
 			disconnect_audio(_req_fd, FIRST_STREAM_ID);
@@ -493,9 +504,33 @@ SAVE_FAIL:
 			return false;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return false;
+		}
+		
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
+			return false;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return false;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return false;
+			}
 		}
 
 		if(req.head.msgType != 0x8212 || req.head.errCode != 0 )
@@ -532,9 +567,33 @@ SAVE_FAIL:
 			return false;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return false;
+		}
+		
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
+			return false;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return false;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return false;
+			}
 		}
 
 		if(req.head.msgType != 0x8202 || req.head.errCode != 0 )
@@ -581,6 +640,16 @@ SAVE_FAIL:
 		if(Network::Sendn(sockfd, &req, sizeof(req)) != sizeof(req))
 		{
 			LOG(LEVEL_ERROR, "Send Packet failed");
+			return false;
+		}
+
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, no respond.\n");
 			return false;
 		}
 
@@ -645,9 +714,33 @@ SAVE_FAIL:
 			return false;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return false;
+		}
+				
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
+			return false;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return false;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return false;
+			}
 		}
 
 		if(req.head.msgType != 0x8204 || req.head.errCode != 0 || req.port == 0 )
@@ -679,12 +772,21 @@ SAVE_FAIL:
 			return false;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(T_HIPC_NET_HEADER)) != sizeof(T_HIPC_NET_HEADER))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return false;
+		}
+
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
 			return false;
 		}
-
 		if(req.head.len <= 0)
 		{
 			LOG(LEVEL_ERROR, "Packet is empty!\n");
@@ -692,7 +794,7 @@ SAVE_FAIL:
 		}
 		else
 		{
-			if((Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len))
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
 			{
 				LOG(LEVEL_ERROR, "Get Packet failed");
 				return false;
@@ -729,9 +831,33 @@ SAVE_FAIL:
 			return;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return;
+		}
+
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
+			return ;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return ;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return ;
+			}
 		}
 
 		if(req.head.msgType != 0x8206 || req.head.errCode != 0)
@@ -761,9 +887,33 @@ SAVE_FAIL:
 			return;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return;
+		}
+		
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
+			return ;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return ;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return ;
+			}
 		}
 
 		if(req.head.msgType != 0x8303 || req.head.errCode != 0)
@@ -792,10 +942,33 @@ SAVE_FAIL:
 			return false;
 		}
 
-		if(Network::Recvn(sockfd, &req, sizeof(req)) != sizeof(req))
+		fd_set fs;
+		struct timeval tv = {1, 0};
+		FD_ZERO(&fs);
+		FD_SET(sockfd, &fs);
+		if(Network::Select(FD_SETSIZE, &fs, NULL, NULL, &tv) <= 0)
+		{
+			LOG(LEVEL_ERROR, "ypeng@ failed, streamID(%d) no respond.\n", (int)streamID);
+			return false;
+		}
+		
+		if(Network::Recvn(sockfd, &req, sizeof(req.head)) != sizeof(req.head))
 		{
 			LOG(LEVEL_ERROR, "Get Packet failed");
-			//return false;
+			return false;
+		}
+		if(req.head.len <= 0)
+		{
+			LOG(LEVEL_ERROR, "Packet is empty!\n");
+			return false;
+		}
+		else
+		{
+			if(Network::Recvn(sockfd, &req.sig_chan, req.head.len) != req.head.len)
+			{
+				LOG(LEVEL_ERROR, "Get Packet failed");
+				return false;
+			}
 		}
 
 		if(req.head.msgType != 0x8208 || req.head.errCode != 0)

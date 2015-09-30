@@ -22,7 +22,7 @@
 using namespace x_util;
 
 namespace device
-{	
+{
 //buffer
 #define WAVE_TOP(a)			(a + (a>>1))
 #define WAVE_FLR(a)			(a - (a>>1))
@@ -98,12 +98,7 @@ public:
 		data.v = &vd;
 		if(d != NULL)
 		{
-			//char* readyMem = new char[d->datalen];
-			//memcpy(readyMem, d->data, d->datalen);
-
 			OPT_MEM* omem = new OPT_MEM(*om);
-			//omem->memData = readyMem;
-			//omem->memLen = d->datalen;
 
 			//
 			memcpy(data.v, d, sizeof(VideoData));
@@ -132,7 +127,6 @@ public:
 		if(isV)
 		{
 			OPT_MEM* om = (OPT_MEM*)data.v->data;
-			//delete[] om->memData;
 			delete om;
 		}
 		else
@@ -366,6 +360,7 @@ public:
 		res.type = RES_DESC;
 		res.ptr = &data;
 		//LOG(LEVEL_INFO, "20150104 req_desc, audio_num=%u, video_num=%u.\n", audio_num, video_num);
+
 		if(_cb)
 		{
 			_cb(&res, _context, _item);
@@ -374,6 +369,11 @@ public:
 
 	void req_audio(const AudioData* p)
 	{
+		if(isexit())
+		{
+			return;
+		}
+
 		Result res;
 		res.type = RES_AUDIO_DATA;
 		res.ptr = p;
@@ -386,16 +386,17 @@ public:
 
 	void req_video(const VideoData* p)
 	{
+		if(isexit())
+		{
+			return;
+		}
+
 #ifdef OPT_MEM_TO_PTR
 		VideoData vdp;
 		memcpy(&vdp, p, sizeof(VideoData));
 
 		char* readyMem = new char[vdp.datalen];
 		memcpy(readyMem, vdp.data, vdp.datalen);
-
-		//std::shared_ptr<char> *rM = new std::shared_ptr<char>(readyMem, mydel);
-		//OPT_SHR_MEM* osm = new OPT_SHR_MEM();
-		//osm->sp = *rM;
 
 		OPT_MEM omem = {readyMem, vdp.datalen};
 		vdp.data = (char*)&omem;
@@ -408,13 +409,6 @@ public:
 		Result res;
 		res.type = RES_VIDEO_DATA;
 		res.ptr = p;
-		
-		//struct timeval tv;
-		//gettimeofday(&tv, NULL);
-
-		//u_int32 timestamp = ((u_int32)tv.tv_sec * 1000 + tv.tv_usec/1000);
-		//LOG(LEVEL_INFO, "20150104 req_video, stamp=%llu, dataLen=%u, frametype=%x, curTime=%llu, dif=%llu.\n", p->timestamp, p->datalen, p->frametype, timestamp, timestamp-_preTime);
-		//_preTime = timestamp;
 #endif//OPT_MEM_TO_PTR
 
 		if(_cb)
@@ -422,7 +416,9 @@ public:
 			_cb(&res, _context, _item);
 		}
 
-#ifdef OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_Plugin) != 0)
+{
 		struct timeval tv;
 		gettimeofday(&tv, NULL);
 
@@ -443,18 +439,24 @@ public:
 			ival = (g_plugin_nowtime[g_plugin_cnt%30] - g_plugin_nowtime[(g_plugin_cnt+1)%30]) /30;
 		}
 
-		if(false)//(l_dif > 100 || g_dif < 0 || ival > 35)
+		if(l_dif > 100 || g_dif < 0 || ival > 35)
 		{	
 			pthread_t self_id = pthread_self();
-			LOG(LEVEL_INFO, "thread=%d:%u, SEND >> data=%d, size=%d. stamp=%llu, nowtime=%llu, interval=%ld, frame_ival=%d.\n"
+			LOG(LEVEL_INFO, "thread=%d:%u, SEND >> data=%d, size=%d. stamp=%llu, nowtime=%u, interval=%ld, 1/fps=%d.\n"
 				, (int)self_id.p, self_id.x
 				, (int)omem.memData, omem.memLen, p->timestamp, nowtime, l_dif, ival);
 		}
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 	}
 
 	void req_audio_toBuf(const AudioData* p)
 	{
+		if(isexit())
+		{
+			return;
+		}
+
 		StreamBuf* sb = NULL;
 		std::map<std::string, StreamBuf*>::iterator it = _buffers.find(p->stream.string());
 		if(it != _buffers.end())
@@ -470,19 +472,16 @@ public:
 		//
 		struct timeval tv;
 		gettimeofday(&tv, NULL);
-		u_int32 nowtime = ((u_int32)tv.tv_sec * 1000 + tv.tv_usec/1000);
-		if(0 == sb->param.ap._preTimeA)
-		{
-			sb->param.ap._preTimeA = nowtime;
-		}
+		u_int64 nowtime = ((u_int64)tv.tv_sec * 1000 + tv.tv_usec/1000);
+		//if(0 == sb->param.ap._preTimeA)
+		//{
+		//	sb->param.ap._preTimeA = nowtime;
+		//}
+		LOG(LEVEL_INFO, "audio, frameno(%u), nowtime(%llu), stamp(%llu), n-s(%lld)."
+			, sb->_frameCnt, nowtime, p->timestamp, nowtime-p->timestamp);
 
-		struct PluginBuf* buf = new struct PluginBuf(p, (nowtime - sb->param.ap._preTimeA));
-		sb->param.ap._preTimeA = nowtime;
-
-		//char* ad = new char[buf->data.a->datalen];
-		//memcpy(ad, buf->data.a->data, buf->data.a->datalen);
-		//buf->data.a->data = ad;
-		//buf->data.a->datalen = p->datalen;
+		struct PluginBuf* buf = new struct PluginBuf(p, nowtime);//(nowtime - sb->param.ap._preTimeA));
+		//sb->param.ap._preTimeA = nowtime;
 
 		//
 		pthread_mutex_lock(&sb->_bufMtx);
@@ -490,10 +489,28 @@ public:
 		pthread_mutex_unlock(&sb->_bufMtx);
 
 		sb->_frameCnt++;
+
+		if(! sb->_isBaseSet)
+		{
+			sb->_isBaseSet = true;
+
+			//
+			//struct timeval tv;
+			//gettimeofday(&tv, NULL);
+			//u_int32 nowtime = ((u_int32)tv.tv_sec * 1000 + tv.tv_usec/1000);
+
+			SetBase(sb, nowtime);
+			LOG(LEVEL_WARNING, "NOW, audio buffer(%s) base is set! curTime=%u, timeout=%u.", p->stream.string().c_str(), sb->_curTime, _timeout);
+		}
 	}
 
 	void req_video_toBuf(const VideoData* p)
 	{
+		if(isexit())
+		{
+			return;
+		}
+
 		StreamBuf* sb = NULL;
 		std::map<std::string, StreamBuf*>::iterator it = _buffers.find(p->stream.string());
 		if(it != _buffers.end())
@@ -513,6 +530,14 @@ public:
 		OPT_MEM* omem = &OPT_MEM();
 		omem->memData = readyMem;
 		omem->memLen = p->datalen;
+		
+		//
+		struct timeval tv;
+		gettimeofday(&tv, NULL);
+		u_int64 nowtime = ((u_int64)tv.tv_sec * 1000 + tv.tv_usec/1000);
+
+		LOG(LEVEL_INFO, "video, frameno(%u), nowtime(%llu), stamp(%llu), n-s(%lld)."
+			, sb->_frameCnt, nowtime, p->timestamp, nowtime-p->timestamp);
 
 		struct PluginBuf* buf = new struct PluginBuf(p, omem, GetInterval(sb));
 		//buf->data.v->data = (char*)omem;
@@ -528,13 +553,8 @@ public:
 		{
 			sb->_isBaseSet = true;
 
-			//
-			struct timeval tv;
-			gettimeofday(&tv, NULL);
-			u_int32 nowtime = ((u_int32)tv.tv_sec * 1000 + tv.tv_usec/1000);
-
 			SetBase(sb, nowtime);
-			LOG(LEVEL_WARNING, "NOW, buffer base is set! curTime=%u, timeout=%u.", sb->_curTime, _timeout);
+			LOG(LEVEL_WARNING, "NOW, video buffer(%s) base is set! curTime=%u, timeout=%u.", p->stream.string().c_str(), sb->_curTime, _timeout);
 		}
 	}
 
@@ -608,9 +628,12 @@ public:
 				sb->_bufCan.pop();
 
 				//for debug
-#ifdef OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_Plugin) != 0)
+{
 				sb->_readyB->data.v->timestamp = sb->_bufCan.size();
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 			}
 			pthread_mutex_unlock(&sb->_bufMtx);
 
@@ -641,11 +664,12 @@ public:
 				_cb(&res, _context, _item);
 			}
 
-#ifdef OPT_DEBUG_OUT
-			if(g_dif < 0)//(_adjust != 0)
-#else
-			if(sb->_frameCnt %200 == 1)
-#endif//OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+			if((g_dbgClass & opt_Plugin) != 0 && g_dif < 0//(_adjust != 0)
+//#else
+			|| 
+			(g_dbgClass & opt_Plugin) == 0 && (sb->_frameCnt %200 == 1))
+//#endif//OPT_DEBUG_OUT
 			{
 				LOG(LEVEL_INFO, "buffer@(%d) video_cb(): _orgBufCnt=%d, _frameCnt=%u, _adjust=%d, curPTS=%u, _timeout=%u, nowtime=%u, outtime_dif=%llu, stamp(buf_size)=%llu."
 					, (int)this, sb->param.vp._orgBufCnt, sb->_frameCnt, sb->param.vp._adjust, sb->_curTime, _timeout, nowtime, (ULONGLONG)nowtime - _preTime, sb->_readyB->data.v->timestamp);
@@ -685,16 +709,20 @@ public:
 				sb->_bufCan.pop();
 
 				//for debug
-#ifdef OPT_DEBUG_OUT
+//#ifdef OPT_DEBUG_OUT
+if((g_dbgClass & opt_Plugin) != 0)
+{
 				sb->_readyB->data.a->timestamp = sb->_bufCan.size();
-#endif//OPT_DEBUG_OUT
+}
+//#endif//OPT_DEBUG_OUT
 			}
 			pthread_mutex_unlock(&sb->_bufMtx);
 
 			if(sb->_readyB != NULL)
 			{
-				sb->_curTime += sb->_readyB->pts;
-				sb->_readyB->pts = sb->_curTime + _timeout;//GetPTS(_readyA->pts);
+				//sb->_curTime += sb->_readyB->pts;
+				//sb->_readyB->pts = sb->_curTime + _timeout;//GetPTS(_readyA->pts);
+				sb->_readyB->pts += _timeout +200;
 			}
 			else
 			{
@@ -795,7 +823,33 @@ _UNINITIALIZED:
 			PluginBuf* del = NULL;
 			int cnt = 0;
 
-			//
+			//待发送缓存回收
+			if(sb->_readyB != NULL)
+			{
+				PluginBuf* pb = sb->_readyB;
+				sb->_readyB = NULL;
+				
+				if(StreamBuf::VIDEO_BUF == sb->_vaType)
+				{
+					OPT_MEM* omem = (OPT_MEM*)pb->data.v->data;
+					dcnt++;
+					dlen += omem->memLen;
+
+					delete[] omem->memData;
+					omem->memData = NULL;
+					omem->memLen = 0;
+					//delete omem;
+				}
+				else
+				{
+					dcnt++;
+					dlen += pb->data.a->datalen;
+				}
+				delete pb;
+				pb = NULL;
+			}
+
+			//缓存队列回收
 			do
 			{
 				pthread_mutex_lock(&sb->_bufMtx);
@@ -817,6 +871,8 @@ _UNINITIALIZED:
 						dlen += omem->memLen;
 
 						delete[] omem->memData;
+						omem->memData = NULL;
+						omem->memLen = 0;
 						//delete omem;
 					}
 					else
